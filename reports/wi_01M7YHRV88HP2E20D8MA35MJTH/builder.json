@@ -1,0 +1,42 @@
+{
+  "role": "builder",
+  "attempt": 1,
+  "report": {
+    "schema": "pr-report/1",
+    "summary": [
+      "Calendar gains first_free_slot(minutes, day_start, day_end), which returns the first free stretch of at least N minutes inside the working day.",
+      "Why: a scheduler could list gaps but not ask for a free slot of a given length. gaps also leaks outside the window when a booking lies outside it.",
+      "Callers get a Slot, or Calendar::NoFreeSlot (\"no free slot of 60 minutes in 09:00-17:00\") when nothing fits."
+    ],
+    "blocks": [
+      {
+        "type": "diagram",
+        "title": "How first_free_slot picks a slot",
+        "mermaid": "flowchart TD\n  A[gaps day_start, day_end] --> B[clamp gap to day]\n  B --> C{empty after clamp?}\n  C -- yes --> A\n  C -- no --> D{length >= N minutes?}\n  D -- yes --> E[return Slot]\n  D -- no --> A\n  A -- none left --> F[raise NoFreeSlot]"
+      }
+    ],
+    "focus": [
+      {
+        "title": "Clamping works around a gaps quirk",
+        "detail": "gaps returns ranges outside the window when a booking lies outside it. first_free_slot clamps to the window; gaps itself is unchanged and is worth its own work item.",
+        "files": [
+          "lib/scheduling/calendar.rb"
+        ]
+      },
+      {
+        "title": "Raises instead of returning nil",
+        "detail": "New Calendar::NoFreeSlot, matching the Conflict pattern, so a missing slot cannot be passed on to book.",
+        "files": [
+          "lib/scheduling/calendar.rb"
+        ]
+      }
+    ],
+    "technical": "technical.md",
+    "conceptual": "conceptual.md"
+  },
+  "media_commit": "a80868a69a7aba3a627b22700af45468e5680ed2",
+  "media_prefix": "reports/wi_01M7YHRV88HP2E20D8MA35MJTH/builder-1",
+  "inline": {},
+  "problems": [],
+  "stored_at": "2026-11-21T17:59:22.317Z"
+}
