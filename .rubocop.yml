@@ -1,0 +1,15 @@
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - "vendor/**/*"
+
+Style/Documentation:
+  Enabled: true
+
+Metrics/MethodLength:
+  Max: 15
+
+# The code uses double quotes throughout; keep the style it already has.
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
