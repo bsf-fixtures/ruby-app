@@ -1,0 +1,24 @@
+# Documentation hosts the spec role may research for this repo.
+#
+# This repository has no dependency manifest, so there is no library list to
+# derive these from. What is below is the narrowest honest set: the language
+# the README and the repo name state ("Fixture of a Ruby App"), the toolchain
+# that is actually installed on the runner (ruby 3.3.8, bundler 2.5.22,
+# rake 13.3.1), and the one piece of machinery the repo genuinely contains
+# (GitHub Actions workflows). No framework host is listed — no Rails, Sinatra,
+# RSpec or database client appears anywhere in the tree, and guessing one would
+# point research at a stack this repo has not chosen.
+#
+# When the first Gemfile lands, this list should be regenerated from it.
+
+# Ruby language and standard library
+docs.ruby-lang.org
+ruby-doc.org
+
+# Dependency management — the toolchain present on the runner
+bundler.io
+rubygems.org
+guides.rubygems.org
+
+# GitHub Actions: the only executable machinery currently in the repository
+docs.github.com

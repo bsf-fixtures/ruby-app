@@ -5,34 +5,66 @@
   Every agent reads this first. The question it has to answer is "where would
   this change go?" — so it names folders and what each one owns, not what the
   product does.
-
-  {{PLACEHOLDERS}} are filled in by setup.
 -->
 
-# Feature map — {{REPO_NAME}}
+# Feature map — bsf-fixtures/ruby-app
 
-{{ONE_LINE_WHAT_THIS_REPO_IS}}
+A repository with no application in it yet: `main` holds a two-line README, the
+factory's own definition under `.factory/`, and the thirty compiled factory
+workflows under `.github/workflows/`. The README calls it "Fixture of a Ruby
+App to install factory on", so Ruby is the stated intent — but no Ruby file,
+`Gemfile`, `Rakefile`, `config.ru` or gemspec exists on any branch.
 
 ## Feature folders
 
 | Folder | Owns | Depends on |
 | --- | --- | --- |
-{{FEATURE_FOLDER_ROWS}}
+| | | |
+
+There are none. The import graph is empty because there is nothing to import:
+a `find` for `*.rb`, `Gemfile*`, `*.gemspec`, `Rakefile`, `config.ru`,
+`Dockerfile*`, `docker-compose*` and `.env*` across the whole tree returns
+nothing. The first change that adds application code also creates this table's
+first row.
 
 ## Shared
 
 | Folder | What it is | Rule |
 | --- | --- | --- |
-{{SHARED_FOLDER_ROWS}}
+| `.factory/definition/` | The factory's own configuration: `factory.yaml`, `policy.yaml`, the seven role definitions, the five rubrics and the context templates these files were written from. | Part of the factory definition. Changes need a trusted human's approval; agents do not edit it as part of product work. |
+| `.factory/guardrails/` | `baselines.json` (per-rule, per-file lint counts — currently an empty rule set), `coverage.json` (0% floor, 80% diff minimum), `candidates.json` (empty). | Written by the gates and the hardener, not by hand. A loosened baseline is what Gate 1 is looking for. |
+| `.factory/bin/` | The packed `bsf` runner (`bsf`, `runner.tgz`, `VERSION` — 0.1.0 d2b55f899552). Packed so no linter or type checker in this repo reads it. | Replaced wholesale by a factory upgrade. Never edited in place. |
+| `.github/workflows/` | Thirty `factory-*` workflows. Each role has a `.md` source and a `.lock.yml` compiled by `gh aw compile`; the rest (`factory-gates`, `factory-run`, `factory-intake`, `factory-merge`, …) are the orchestration. | The `.md` is the source; the `.lock.yml` is generated. Editing a lock file by hand is what `bsf audit` reports as drift. |
+
+No folder here is application code. Everything in the table is factory
+machinery that happens to live in the same repository.
 
 ## Where things go
 
-- **A new feature** gets its own folder under {{FEATURE_ROOT}}.
-- **Something used by two features** moves to {{SHARED_ROOT}}, and not before
-  the second use. One caller is not a shared concern.
+- **A new feature** gets its own folder under a feature root that *does not
+  exist yet*. Nothing in this repository sets a precedent — there is no `lib/`,
+  no `app/`, no `src/`. The first change that adds application code has to
+  choose the root and the layout, and must record that choice here and in the
+  runbook, because every later change will follow it.
+- **Something used by two features** moves to a shared root, also not yet
+  chosen, and not before the second use. One caller is not a shared concern.
 - **Nothing in a feature folder imports from another feature folder.** Where
   two features need the same thing, it belongs in shared.
 
 ## Not in this repo
 
-{{OUT_OF_SCOPE}}
+- **The application.** No Ruby source, no dependency manifest, no entrypoint,
+  no tests. This is the single most important fact about the repository.
+- **A web server or any HTTP surface.** No `config.ru`, no Rails or Sinatra
+  app, no `bin/` server script. The sandbox's `app_url` is `null` for this
+  reason.
+- **Any data store, cache, queue or mail transport.** No `config/database.yml`,
+  no `db/`, no migration, no client library.
+- **Any third-party integration or credential.** Nothing in the tree reads an
+  environment variable, a `.env` file or a settings module. The sandbox's `env`
+  list is empty because the configuration surface is empty, not because it was
+  not looked for.
+- **Linting and test configuration.** No `.rubocop.yml`, no `.rspec`, no
+  `spec/` or `test/`. `baselines.json` has an empty rule set to match.
+- **Deployment, containers and CI for the app.** No Dockerfile, no compose
+  file, no devcontainer, and every workflow present is the factory's own.

@@ -1,0 +1,127 @@
+{
+  "schema": "sandbox/1",
+  "tier": "static",
+  "tier_reason": "There is no application in this repository. The whole of `main` is 56 tracked files: README.md, 25 under .factory/, and 30 .github/workflows/factory-*.yml. There is no Gemfile, no .rb file, no Rakefile, no config.ru, no gemspec, no Dockerfile and no compose file, so there is nothing to install, build, test or start. `build_and_test` would require a command that genuinely builds or tests this repo's code and there is none; `renders` would require an HTTP entrypoint and there is none. The name 'ruby-app' and the README's 'Fixture of a Ruby App to install factory on' state the intent, but intent is not code, and a command invented against code that does not exist would be a guess the trial could not falsify.",
+  "commands": {
+    "install": null,
+    "build": null,
+    "run": null,
+    "test": null,
+    "seed": null
+  },
+  "app_url": null,
+  "env": [],
+  "services": [],
+  "egress": [],
+  "stubs": [],
+  "dropped": [
+    {
+      "from": ".github/workflows/factory-*.yml",
+      "what": "actions/checkout, actions/upload-artifact, actions/download-artifact, workflow_call plumbing, the GitHub App token exchange, and the Node runtime that .factory/bin/bsf unpacks itself onto",
+      "why": "These describe how the factory itself runs on GitHub Actions, not what the application under test needs installed. The sandbox is for the app; the role workflows supply their own runner and Node (v24 on the hosted image) before the sandbox is ever started."
+    },
+    {
+      "from": ".gitignore (untracked in the working copy) and the empty .playwright/ directory",
+      "what": "the `.playwright-cli/` ignore entry and the `.playwright/` scratch directory",
+      "why": "Output scratch space for the agent harness's browser tooling, present only in the working copy and not on main. It is not an application dependency and nothing in the repo reads it."
+    }
+  ],
+  "capabilities": {
+    "exercised": [],
+    "not_exercised": [
+      {
+        "what": "Everything that executes. No command runs in this sandbox at all, because the repository contains no application.",
+        "paths": [
+          "**"
+        ],
+        "why": "`git ls-files` on main returns 56 paths: README.md, 25 under .factory/ and 30 under .github/workflows/, all of them factory-*. A verifier here can read and edit text; it cannot observe any behaviour, because there is none yet."
+      },
+      {
+        "what": "Ruby dependency installation and the gem graph it would produce",
+        "paths": [
+          "Gemfile",
+          "Gemfile.lock",
+          "*.gemspec",
+          ".ruby-version"
+        ],
+        "why": "No Gemfile exists; `bundle install` in this checkout exits 10 with 'Could not locate Gemfile'. Ruby 3.3.8 and bundler 2.5.22 are present on the runner image, so the capability is one Gemfile away — but the first change that adds one needs an amendment episode to turn commands.install from null into a real command."
+      },
+      {
+        "what": "Automated tests and coverage measurement",
+        "paths": [
+          "spec/**",
+          "test/**",
+          "Rakefile",
+          ".rspec"
+        ],
+        "why": "No test framework, test directory, Rakefile or test task is declared anywhere, so commands.test is null rather than a command that would pass vacuously. .factory/guardrails/coverage.json already carries a 0% floor, which matches: there is nothing to cover."
+      },
+      {
+        "what": "Static analysis against the repo's own linters",
+        "paths": [
+          ".rubocop.yml",
+          "**/*.rb"
+        ],
+        "why": "No linter is configured and .factory/guardrails/baselines.json holds an empty rule set, so Gate 1 has nothing to compare. Adding RuboCop (or any linter) is itself a change this sandbox cannot exercise."
+      },
+      {
+        "what": "Starting the app and seeing it in a browser",
+        "paths": [
+          "config.ru",
+          "app/**",
+          "lib/**",
+          "bin/**",
+          "public/**"
+        ],
+        "why": "There is no HTTP entrypoint — no config.ru, no Rails or Sinatra application, no server script — so app_url is null, no page can be loaded and no screenshot can be taken. Every claim about rendered behaviour is out of reach until an entrypoint exists."
+      },
+      {
+        "what": "Any backing service: database, cache, queue, object store or mail",
+        "paths": [
+          "config/database.yml",
+          "db/**",
+          "config/**"
+        ],
+        "why": "No code reads a database or any other service, so `services` is empty and no container is started. A change introducing persistence needs an amendment that adds the service and the variable pointing at 127.0.0.1."
+      },
+      {
+        "what": "Third-party API integration",
+        "paths": [],
+        "why": "No client code exists and nothing in the repository reads an environment variable, a .env file or a settings module, so there is nothing to stub, no provider test mode to name and no inert variable to declare. `env` is empty because the app's configuration surface is genuinely empty, not because it was not searched for."
+      }
+    ]
+  },
+  "episode": [
+    {
+      "attempt": 1,
+      "tried": "Read the repository before running anything: `git ls-files` on main, a full `find` for build manifests (Gemfile, Gemfile.lock, *.gemspec, Rakefile, config.ru, *.rb, Dockerfile*, docker-compose*, .env*), the README, .gitignore, .factory/definition/factory.yaml, the three .factory/guardrails/*.json files, and every .github/workflows/*.yml. Cross-checked against the GitHub API that the local checkout is not partial, and listed the repository's four branches.",
+      "observed": "The checkout is complete and the repository holds no application. The tracked tree is 56 files: README.md plus .factory/ (25) and .github/workflows/ (30, every one factory-*). The README says 'Build Software Factory: Fixture of a Ruby App to install factory on'. factory.yaml has no stack-specific setting, baselines.json has an empty rule set, candidates.json is empty, coverage.json has a 0% floor. The GitHub API root listing for main returns the same three entries, so nothing was hidden by the checkout.",
+      "changed": null
+    },
+    {
+      "attempt": 2,
+      "tried": "Probed the toolchain the trial would actually have, to see whether any Ruby command could be made to pass honestly: `ruby -v`, `gem -v`, `bundle -v`, `rake --version`, `gem env home`, and `bundle install` in an empty scratch directory outside the repo.",
+      "observed": "ruby 3.3.8 at /usr/bin/ruby with bundler 2.5.22 as a default gem (reachable as `ruby -S bundle`; there is no plain `bundle` on the system path, only /usr/bin/bundle3.3, and the `bundle` this agent container resolves comes from a hostedtoolcache Ruby 4.0.9 that the trial runner will not have on PATH). rake 13.3.1 is present. `bundle install` without a Gemfile exits 10, 'Could not locate Gemfile'. So a bare `bundle install` as commands.install would fail the trial outright.",
+      "changed": null
+    },
+    {
+      "attempt": 3,
+      "tried": "Considered a guarded install — `if [ -f Gemfile ]; then ruby -S bundle install; else echo 'no Gemfile yet'; fi` — which passes today and would do the right thing once a Gemfile lands. Read bsf's own reachedTier() to see what the trial would then measure.",
+      "observed": "reachedTier() returns build_and_test as soon as any one of install/build/test is non-null and passes, even with build and test null. The guard would therefore have the trial certify this repo as build_and_test when nothing is built and nothing is tested — exactly the 'confident unverified' outcome the runbook template warns about. Rejected it: the amendment mechanism exists for the moment real code arrives, and capabilities.not_exercised names the Gemfile path that will trigger it.",
+      "changed": "Settled on all four commands null and tier static, with the Gemfile, test, entrypoint and service gaps each written out under not_exercised so the first change that touches one opens an amendment episode rather than being silently waved through."
+    },
+    {
+      "attempt": 4,
+      "tried": "Wrote the manifest with every command null, no env, no services, no stubs and no egress; validated it with `bsf sandbox check`; then ran the trial itself locally — `bsf sandbox trial --candidate ... --out ...` — rather than only reasoning about what it would do.",
+      "observed": "`sandbox check` reports 'valid sandbox manifest, tier static'. The local trial reports reached=static, claimed=static, met=true, with install, build and test each recorded as a null command and no run or screenshot step attempted because app_url is null. No service container was needed, so the one thing this dry run could not cover (docker, which is only on the runner) was not in the path anyway.",
+      "changed": "Corrected the file counts quoted in tier_reason and not_exercised against `git ls-files` (56 tracked: README.md, 25 under .factory/, 30 under .github/workflows/), and noted in `dropped` that .gitignore is untracked in the working copy rather than part of main."
+    },
+    {
+      "attempt": 5,
+      "tried": "trial of round 1: nothing to run",
+      "observed": "reached static, as claimed",
+      "changed": null
+    }
+  ],
+  "frozen_at": "2026-11-21T04:41:36.310Z"
+}
