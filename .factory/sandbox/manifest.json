@@ -1,0 +1,146 @@
+{
+  "schema": "sandbox/1",
+  "tier": "build_and_test",
+  "tier_reason": "There is no app to render. This repo is a library and nothing else: no bin/, no exe/, no server, no CLI entry point, no gemspec — grep for a main, a Rack app or an executable finds nothing. lib/scheduling is loaded by a caller with -Ilib, so there is no process to start and no URL to point a browser at, which is why run and app_url are null. Everything short of that works and was run here: bundle install resolves 16 gems into vendor/bundle, and the minitest suite reports 5 runs, 8 assertions, 0 failures, 0 errors, 0 skips.",
+  "commands": {
+    "install": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; bundle config set --local path vendor/bundle && bundle install",
+    "build": null,
+    "run": null,
+    "test": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; bundle exec ruby -Ilib test/test_calendar.rb",
+    "seed": null
+  },
+  "app_url": null,
+  "env": [],
+  "services": [],
+  "egress": [
+    "rubygems.org",
+    "index.rubygems.org"
+  ],
+  "stubs": [],
+  "dropped": [
+    {
+      "from": ".github/workflows/ci.yml",
+      "what": "uses: ruby/setup-ruby@v1 with ruby-version: \"3.3\" and bundler-cache: true",
+      "why": "A GitHub Action cannot run inside the sandbox, which executes plain shell commands. What it provides is carried across by other means rather than ignored: the Ruby version by selecting a 3.3.x from the runner's tool cache in the install and test commands, and the gem cache by installing into vendor/bundle. Only the Action itself is dropped."
+    },
+    {
+      "from": ".github/workflows/ci.yml",
+      "what": "the second step, bundle exec rubocop",
+      "why": "RuboCop is this repo's linter and the factory's static gate already runs it, comparing each rule's count per file against the baselines so that offenses which already exist are tolerated. Running it again as the sandbox's build would be a second, stricter copy of the same check that disagrees with the gate about what counts as a failure. It passes here — 4 files inspected, no offenses detected — and the runbook tells a developer to run it; it is just not the build command."
+    },
+    {
+      "from": "README.md",
+      "what": "the bare bundle install in the Test section",
+      "why": "Kept, but not verbatim. Run as written it fails on this runner with Bundler::ReadOnlyFileSystemError against the shared gem home, so the sandbox sets a local install path first. The README describes a developer's machine, where the gem home is writable; the difference is environment, not intent."
+    }
+  ],
+  "capabilities": {
+    "exercised": [
+      "The whole of lib/scheduling: Slot (half-open overlaps?, minutes, to_s, the ArgumentError on a slot that does not end after it starts) and Calendar (book, free?, booked_minutes, gaps, and the Calendar::Conflict error), loaded with ruby -Ilib.",
+      "The entire test suite — test/test_calendar.rb is the only test file — at 5 runs and 8 assertions, covering both decisions the README says a change could quietly reverse: back-to-back bookings do not clash, and an overlap raises naming the clash rather than returning false.",
+      "The exact message Calendar#book raises, since test_an_overlap_raises_naming_the_clash asserts the clashing slot's HH:MM-HH:MM form appears in it.",
+      "Gap computation across the leading, interior and trailing gaps of a day (test_gaps_between_bookings).",
+      "Dependency resolution from the Gemfile with no lockfile committed: bundle install resolves minitest and rubocop afresh within their ~> constraints, so a resolution that breaks the build shows up here.",
+      "RuboCop over all four Ruby files with the repo's own .rubocop.yml, including Style/Documentation and the double-quote style. Run during this episode with no offenses. It is the static gate's command rather than the manifest's, but it needs nothing the sandbox does not already provide."
+    ],
+    "not_exercised": [
+      {
+        "what": "Anything that requires starting a process: a server, a CLI, an HTTP request, a rendered page, a screenshot, a browser flow.",
+        "paths": [],
+        "why": "This repo contains no executable of any kind. The limit is the repo's, not the sandbox's — there is nothing here that could be started. A change that adds a bin/ or a server is the signal to amend this manifest, because the tier would then be able to reach renders."
+      },
+      {
+        "what": "Behaviour under any Ruby other than the single 3.3.x the runner's tool cache happens to provide, and under any dependency versions other than the ones resolved on the day.",
+        "paths": [
+          "Gemfile",
+          ".rubocop.yml"
+        ],
+        "why": "CI pins ruby-version 3.3 and .rubocop.yml sets TargetRubyVersion: 3.3, so the sandbox selects a 3.3.x to match — 3.3.13 when measured. There is no version matrix anywhere in the repo, so neither CI nor the sandbox says anything about other versions. Note the fallback: if no 3.3.x is in the tool cache the commands use whichever Ruby owns bundle, which on this runner is 4.0.9; the tests pass there too, but that path is a fallback, not the measured configuration."
+      },
+      {
+        "what": "Time types other than ::Time, and time zone or DST behaviour.",
+        "paths": [
+          "lib/scheduling/slot.rb"
+        ],
+        "why": "Slot is duck-typed — it only needs endpoints that compare, subtract and answer strftime — but every test builds them with Time.parse at a fixed date in UTC. Nothing here exercises a DateTime, an ActiveSupport::TimeWithZone, a local zone, or a day on which the clocks change. A change to how Slot handles its endpoints is not covered by what passes here."
+      },
+      {
+        "what": "Concurrency, persistence and anything outliving the process.",
+        "paths": [
+          "lib/scheduling/calendar.rb"
+        ],
+        "why": "A Calendar is an in-memory array with no locking and no store. Two threads booking at once, or a calendar surviving a restart, are outside both the code and the tests. Note that Calendar#slots hands back the live array, so a caller could mutate it past book — untested, and worth a deliberate decision rather than a quiet change."
+      },
+      {
+        "what": "Performance at any realistic size.",
+        "paths": [
+          "lib/scheduling/calendar.rb"
+        ],
+        "why": "book is a linear scan and re-sorts the whole array on every insert. The suite books at most two slots, so it would not notice a change that made this quadratic or worse. There is no benchmark in the repo."
+      }
+    ]
+  },
+  "episode": [
+    {
+      "attempt": 1,
+      "tried": "Read the repo before running anything: Gemfile, .rubocop.yml, README.md, .github/workflows/ci.yml, and all four Ruby files. Grepped lib/ and test/ for ENV[, ENV.fetch, config files and a settings module to find every variable the app needs.",
+      "observed": "A pure library: 47 lines in lib/scheduling/calendar.rb, 28 in slot.rb, 50 in test/test_calendar.rb. Two development dependencies and no runtime ones — the library requires no gem and not even a stdlib file. No environment variable is read anywhere, no file or socket is opened, no database or third party is contacted. No bin/, exe/, server, CLI or gemspec, so nothing can be started. CI is two commands: the minitest file and rubocop.",
+      "changed": "Set the shape of the hypothesis: env, services and stubs all empty; run and app_url null; tier at most build_and_test."
+    },
+    {
+      "attempt": 2,
+      "tried": "The README's command as written: bundle install.",
+      "observed": "Failed after four retries per gem: Bundler::ReadOnlyFileSystemError — \"There was an error while trying to write to /opt/hostedtoolcache/Ruby/4.0.9/x64/lib/ruby/gems/4.0.0/cache/ast-2.4.3.gem. File system is read-only.\" It ended with \"An error occurred while installing lint_roller (1.1.0), and Bundler cannot continue.\" The shared gem home is not writable on this runner.",
+      "changed": "Prefixed the install with bundle config set --local path vendor/bundle. Both /vendor and /.bundle are already in .gitignore, so this leaves nothing behind in the repo. Bundle complete, 16 gems installed."
+    },
+    {
+      "attempt": 3,
+      "tried": "The test command CI runs: bundle exec ruby -Ilib test/test_calendar.rb.",
+      "observed": "Bundler::GemNotFound — \"Could not find minitest-5.27.0, rubocop-1.92.3, ... in locally installed gems\", listing all 16 gems that had just installed successfully. The cause is two different Ruby installations: bundle resolves to the tool cache's Ruby 4.0.9 while ruby on PATH is /usr/bin/ruby 3.3.8, so bundle exec spawns an interpreter that cannot see gems installed under the other one's ABI directory. bundle exec rubocop was unaffected, because a binstub runs under bundler's own Ruby.",
+      "changed": "Made both commands put one Ruby's bin directory first on PATH so install and test agree."
+    },
+    {
+      "attempt": 4,
+      "tried": "Choosing which Ruby to pin to. Took the bindir of whichever install owns bundle (the simplest rule) and ran the suite.",
+      "observed": "It passed, but under Ruby 4.0.9 — a different major from the 3.3 that .rubocop.yml targets and that CI pins with ruby/setup-ruby. A factory whose verification runs a different Ruby from CI will eventually produce a pass that CI does not reproduce.",
+      "changed": "Changed the rule to prefer a 3.3.x from the runner's tool cache and fall back to bundler's own Ruby only if none is there. Re-ran: Ruby 3.3.13, matching CI."
+    },
+    {
+      "attempt": 5,
+      "tried": "Considered bundle exec rubocop as the build command, to give the trial a second measured step and mirror CI.",
+      "observed": "It passes here — 4 files inspected, no offenses detected — and it does fail in an empty directory (\"Could not locate Gemfile or .bundle/ directory\"), so it would survive the control check. But the static gate already runs RuboCop against per-file baselines that tolerate existing offenses, and a bare rubocop as the build is stricter than the gate it would be shadowing.",
+      "changed": "Left build null — this repo genuinely has nothing to build — and recorded the omission under dropped with the reason."
+    },
+    {
+      "attempt": 6,
+      "tried": "Ran the final manifest's commands end to end from a clean tree (rm -rf vendor .bundle first), then the control the trial applies: the test command in an empty temporary directory.",
+      "observed": "install succeeded; test reported \"5 runs, 8 assertions, 0 failures, 0 errors, 0 skips\" under Ruby 3.3.13; rubocop reported no offenses. In an empty directory the test command exits 10, so it depends on this repo's code rather than passing vacuously.",
+      "changed": null
+    },
+    {
+      "attempt": 7,
+      "tried": "Proved the library the way the runbook's Verify section tells a developer to, outside the test suite: booked two back-to-back slots in a console, read booked_minutes and gaps, and forced an overlap.",
+      "observed": "120, [\"09:00-10:00\", \"12:00-17:00\"], and \"Conflict: 10:30-11:30 clashes with 10:00-11:00\" — the half-open range and the raise both behaving as the README describes.",
+      "changed": "Nothing in the manifest; the runbook's Verify steps are the commands that were actually run, with the output they actually produced."
+    },
+    {
+      "attempt": 8,
+      "tried": "Validated the finished manifest: .factory/bin/bsf sandbox check --file /tmp/gh-aw/agent/bsf/setup/manifest.json.",
+      "observed": "\"valid sandbox manifest, tier build_and_test\", exit 0.",
+      "changed": null
+    },
+    {
+      "attempt": 9,
+      "tried": "Re-ran the install and test strings read back out of the finished manifest.json — so that what was measured is exactly what the trial will execute, escaping and all — first under env -i with only the six variables the runner forwards (PATH, HOME, TMPDIR, LANG, CI, RUNNER_TEMP), to imitate the closed environment.",
+      "observed": "Under env -i the install failed with Errno::ENETUNREACH reaching rubygems.org:443. That is an artefact of this setup agent's own sandbox, which reaches the network only through an egress proxy named in HTTPS_PROXY — a variable the runner does not forward and a hop that does not exist on a GitHub-hosted runner, where the trial runs with direct network access. Re-run with the proxy present, the same two strings gave \"Bundle complete! 2 Gemfile dependencies, 16 gems now installed\" and \"5 runs, 8 assertions, 0 failures, 0 errors, 0 skips\", and the test string still exits 10 in an empty directory.",
+      "changed": "Nothing. Recorded because it is the one thing this episode could not verify in the trial's own conditions: if the install step fails on the runner for a network reason, this is where to look first. rubygems.org and index.rubygems.org are listed under egress for that reason."
+    },
+    {
+      "attempt": 10,
+      "tried": "trial of round 1: install, test, control",
+      "observed": "reached build_and_test, as claimed",
+      "changed": null
+    }
+  ],
+  "frozen_at": "2026-11-21T05:40:22.351Z"
+}

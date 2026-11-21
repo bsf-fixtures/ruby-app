@@ -1,0 +1,25 @@
+# Documentation sites for the stack this repo actually uses.
+# One host per line. Nothing here is a dependency the code imports at
+# runtime: lib/scheduling requires no gem and no stdlib file.
+
+# Ruby itself — Time, Comparable, Enumerable#each_slice / #filter_map / #sum,
+# which is all Slot and Calendar are built from.
+docs.ruby-lang.org
+ruby-doc.org
+
+# minitest 5.x — the only test framework here (test/test_calendar.rb).
+# Its API docs are published at docs.seattlerb.org; the source and README,
+# which document assert_raises and the Minitest::Test lifecycle, are on
+# GitHub and rubydoc.
+docs.seattlerb.org
+rubydoc.info
+
+# RuboCop 1.x — .rubocop.yml configures Style/Documentation,
+# Style/StringLiterals and Metrics/MethodLength, and the static gate runs it.
+docs.rubocop.org
+
+# Bundler — the Gemfile and the sandbox's install command.
+bundler.io
+
+# Gem versions and release notes for the two pinned dependencies.
+rubygems.org
