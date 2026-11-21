@@ -1,0 +1,7 @@
+1 empty: 09:00-17:00
+2 skip 30min gap: 10:00-11:00
+3 exact 60min gap: 10:00-11:00
+4a 07-08 booking: 09:00-17:00
+4b 18-19 booking: 09:00-17:00
+5 no free slot: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00
+NoFreeSlot ancestors: [Scheduling::Calendar::NoFreeSlot, StandardError, Exception]

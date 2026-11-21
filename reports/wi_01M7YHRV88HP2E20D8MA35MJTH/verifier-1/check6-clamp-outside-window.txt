@@ -1,0 +1,6 @@
+Acceptance check 6: clamping when a booking lies outside 09:00-17:00
+
+4a 07-08 booking: 09:00-17:00      (gaps() alone returns 08:00-17:00 for this booking)
+4b 18-19 booking: 09:00-17:00      (gaps() alone returns 09:00-18:00 for this booking)
+
+E5 gaps() for comparison, 07:00-08:00 booking: ["08:00-17:00"]

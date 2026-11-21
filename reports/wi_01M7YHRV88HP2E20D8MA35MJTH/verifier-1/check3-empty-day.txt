@@ -1,0 +1,3 @@
+Acceptance check 3: first_free_slot(60, 09:00, 17:00) on a new Calendar with no bookings
+
+1 empty: 09:00-17:00

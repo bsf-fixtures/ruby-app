@@ -1,0 +1,3 @@
+Acceptance check 5: book 09:00-10:00 and 11:00-17:00, then first_free_slot(60, 09:00, 17:00)
+
+3 exact 60min gap: 10:00-11:00

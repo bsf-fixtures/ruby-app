@@ -1,0 +1,5 @@
+E1 fully booked: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00
+E2 gap 30min only: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00
+E3 minutes=30 after out-of-window booking: 09:00-17:00
+E4 returns whole clamped gap, not trimmed: 09:00-10:00
+E5 gaps() for comparison: ["08:00-17:00"]

@@ -1,0 +1,9 @@
+Acceptance check 1: runbook test command (bundle exec ruby -Ilib test/test_calendar.rb)
+
+Run options: --seed 49131
+..........
+Finished in 0.001181s, 8465.3146 runs/s, 15237.5664 assertions/s.
+
+10 runs, 18 assertions, 0 failures, 0 errors, 0 skips
+
+Previous suite was 5 runs; 5 tests added by this change, so 10 is the expected count.

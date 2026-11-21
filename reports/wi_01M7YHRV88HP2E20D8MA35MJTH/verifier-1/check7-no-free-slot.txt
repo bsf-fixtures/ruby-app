@@ -1,0 +1,8 @@
+Acceptance check 7: book 09:00-16:30, then first_free_slot(60, 09:00, 17:00)
+
+5 no free slot: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00
+NoFreeSlot ancestors: [Scheduling::Calendar::NoFreeSlot, StandardError, Exception]
+
+Edge cases (see edge-checks.txt):
+E1 fully booked 09:00-17:00      -> raises NoFreeSlot, message as above
+E2 only 30 minutes free           -> raises NoFreeSlot (does not return the short gap)

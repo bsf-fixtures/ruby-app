@@ -1,0 +1,8 @@
+Acceptance check 2: bundle exec rubocop on lib/scheduling/calendar.rb and test/test_calendar.rb
+
+Inspecting 2 files
+..
+
+2 files inspected, no offenses detected
+
+Whole repo: 4 files inspected, no offenses detected
