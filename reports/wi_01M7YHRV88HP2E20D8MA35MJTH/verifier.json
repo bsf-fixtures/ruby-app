@@ -1,0 +1,77 @@
+{
+  "role": "verifier",
+  "attempt": 1,
+  "report": {
+    "schema": "pr-report/1",
+    "summary": [
+      "Verified Calendar#first_free_slot by running the test suite, RuboCop, and the spec's seven console checks plus edge cases: all seven checks pass, the suite is 10 runs / 0 failures, RuboCop is clean."
+    ],
+    "blocks": [
+      {
+        "type": "file",
+        "file": "check1-tests.txt",
+        "caption": "Acceptance check 1: runbook test command reports 10 runs, 0 failures, 0 errors (5 prior + 5 added)"
+      },
+      {
+        "type": "file",
+        "file": "check2-rubocop.txt",
+        "caption": "Acceptance check 2: RuboCop reports no offenses on calendar.rb and test_calendar.rb (whole repo also clean)"
+      },
+      {
+        "type": "file",
+        "file": "check3-empty-day.txt",
+        "caption": "Acceptance check 3: empty calendar returns 09:00-17:00"
+      },
+      {
+        "type": "file",
+        "file": "check4-skip-short-gap.txt",
+        "caption": "Acceptance check 4: the 30-minute 09:00-09:30 gap is skipped; result is 10:00-11:00"
+      },
+      {
+        "type": "file",
+        "file": "check5-exact-gap.txt",
+        "caption": "Acceptance check 5: a gap of exactly 60 minutes qualifies; result is 10:00-11:00"
+      },
+      {
+        "type": "file",
+        "file": "check6-clamp-outside-window.txt",
+        "caption": "Acceptance check 6: out-of-window bookings at 07:00 and 18:00 do not leak past 09:00-17:00"
+      },
+      {
+        "type": "file",
+        "file": "check7-no-free-slot.txt",
+        "caption": "Acceptance check 7: with no qualifying gap it raises Calendar::NoFreeSlot with the specified message, not nil"
+      },
+      {
+        "type": "file",
+        "file": "console-checks.txt",
+        "caption": "All seven console checks in one run, as observed"
+      },
+      {
+        "type": "file",
+        "file": "edge-checks.txt",
+        "caption": "Edge cases: fully booked day raises; only a 30-minute gap raises; gaps() still returns 08:00-17:00 for a 07:00 booking while first_free_slot clamps to 09:00-17:00"
+      },
+      {
+        "type": "diagram",
+        "title": "What each check exercised",
+        "mermaid": "flowchart LR\n  B[Bookings] --> G[gaps 09:00-17:00]\n  G --> C[clamp each gap to window]\n  C --> T{length >= N min?}\n  T -- yes --> S[Slot for first match]\n  T -- no --> E[raise NoFreeSlot]"
+      }
+    ]
+  },
+  "media_commit": "195e44323f191bfc8a5e654a09fb0c4ccd01b717",
+  "media_prefix": "reports/wi_01M7YHRV88HP2E20D8MA35MJTH/verifier-1",
+  "inline": {
+    "check1-tests.txt": "Acceptance check 1: runbook test command (bundle exec ruby -Ilib test/test_calendar.rb)\n\nRun options: --seed 49131\n..........\nFinished in 0.001181s, 8465.3146 runs/s, 15237.5664 assertions/s.\n\n10 runs, 18 assertions, 0 failures, 0 errors, 0 skips\n\nPrevious suite was 5 runs; 5 tests added by this change, so 10 is the expected count.\n",
+    "check2-rubocop.txt": "Acceptance check 2: bundle exec rubocop on lib/scheduling/calendar.rb and test/test_calendar.rb\n\nInspecting 2 files\n..\n\n2 files inspected, no offenses detected\n\nWhole repo: 4 files inspected, no offenses detected\n",
+    "check3-empty-day.txt": "Acceptance check 3: first_free_slot(60, 09:00, 17:00) on a new Calendar with no bookings\n\n1 empty: 09:00-17:00\n",
+    "check4-skip-short-gap.txt": "Acceptance check 4: book 09:30-10:00 and 11:00-12:00, then first_free_slot(60, 09:00, 17:00)\n\n2 skip 30min gap: 10:00-11:00\n",
+    "check5-exact-gap.txt": "Acceptance check 5: book 09:00-10:00 and 11:00-17:00, then first_free_slot(60, 09:00, 17:00)\n\n3 exact 60min gap: 10:00-11:00\n",
+    "check6-clamp-outside-window.txt": "Acceptance check 6: clamping when a booking lies outside 09:00-17:00\n\n4a 07-08 booking: 09:00-17:00      (gaps() alone returns 08:00-17:00 for this booking)\n4b 18-19 booking: 09:00-17:00      (gaps() alone returns 09:00-18:00 for this booking)\n\nE5 gaps() for comparison, 07:00-08:00 booking: [\"08:00-17:00\"]\n",
+    "check7-no-free-slot.txt": "Acceptance check 7: book 09:00-16:30, then first_free_slot(60, 09:00, 17:00)\n\n5 no free slot: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00\nNoFreeSlot ancestors: [Scheduling::Calendar::NoFreeSlot, StandardError, Exception]\n\nEdge cases (see edge-checks.txt):\nE1 fully booked 09:00-17:00      -> raises NoFreeSlot, message as above\nE2 only 30 minutes free           -> raises NoFreeSlot (does not return the short gap)\n",
+    "console-checks.txt": "1 empty: 09:00-17:00\n2 skip 30min gap: 10:00-11:00\n3 exact 60min gap: 10:00-11:00\n4a 07-08 booking: 09:00-17:00\n4b 18-19 booking: 09:00-17:00\n5 no free slot: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00\nNoFreeSlot ancestors: [Scheduling::Calendar::NoFreeSlot, StandardError, Exception]\n",
+    "edge-checks.txt": "E1 fully booked: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00\nE2 gap 30min only: RAISED Scheduling::Calendar::NoFreeSlot: no free slot of 60 minutes in 09:00-17:00\nE3 minutes=30 after out-of-window booking: 09:00-17:00\nE4 returns whole clamped gap, not trimmed: 09:00-10:00\nE5 gaps() for comparison: [\"08:00-17:00\"]\n"
+  },
+  "problems": [],
+  "stored_at": "2026-11-21T18:06:16.128Z"
+}
