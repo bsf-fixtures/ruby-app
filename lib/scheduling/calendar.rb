@@ -6,6 +6,7 @@ module Scheduling
   # A day's bookings for one room.
   class Calendar
     class Conflict < StandardError; end
+    class NoFreeSlot < StandardError; end
 
     attr_reader :room, :slots
 
@@ -42,6 +43,22 @@ module Scheduling
 
         Slot.new(from, to)
       end
+    end
+
+    # The first stretch of at least `minutes` inside the working day, which is
+    # what a scheduler needs to offer a booking.
+    #
+    # Each gap is clamped to the day: gaps trusts its edges, so a booking
+    # outside the window stretches a gap beyond it. Raising rather than
+    # returning nil, so a caller cannot pass a missing slot on to book.
+    def first_free_slot(minutes, day_start, day_end)
+      gaps(day_start, day_end).each do |gap|
+        from = [gap.starts_at, day_start].max
+        to = [gap.ends_at, day_end].min
+        next if to <= from
+        return Slot.new(from, to) if (to - from) >= minutes * 60
+      end
+      raise NoFreeSlot, "no free slot of #{minutes} minutes in #{Slot.new(day_start, day_end)}"
     end
   end
 end
