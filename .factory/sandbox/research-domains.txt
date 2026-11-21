@@ -15,11 +15,16 @@ docs.seattlerb.org
 rubydoc.info
 
 # RuboCop 1.x — .rubocop.yml configures Style/Documentation,
-# Style/StringLiterals and Metrics/MethodLength, and the static gate runs it.
+# Style/StringLiterals and Metrics/MethodLength, and the static gate counts
+# its findings from the SARIF its built-in sarif formatter writes.
 docs.rubocop.org
 
-# Bundler — the Gemfile and the sandbox's install command.
+# Bundler — the Gemfile, the sandbox's install command, and the eval_gemfile
+# + BUNDLE_GEMFILE arrangement the coverage command uses.
 bundler.io
 
-# Gem versions and release notes for the two pinned dependencies.
+# Gem versions and release notes for the two pinned dependencies, and for
+# simplecov / simplecov-lcov, which the sandbox adds for the coverage gate.
+# Their own documentation is a README rather than a docs site; rubydoc.info
+# above serves the API.
 rubygems.org
