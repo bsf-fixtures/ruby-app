@@ -1,0 +1,3 @@
+- `lib/scheduling/calendar.rb`: adds `NoFreeSlot` next to `Conflict`, and `first_free_slot`. It walks `gaps(day_start, day_end)`, clamps each gap with `[starts, day_start].max` and `[ends, day_end].min`, skips empty ones, and returns a new Slot for the first whole clamped gap of at least `minutes * 60` seconds. Otherwise it raises `NoFreeSlot`.
+- `test/test_calendar.rb`: five new tests (empty day, short gap skipped, exact fit, bookings outside hours, no slot raises). No existing test changed.
+- RuboCop reports no offenses. The suite runs 10 tests with 0 failures.

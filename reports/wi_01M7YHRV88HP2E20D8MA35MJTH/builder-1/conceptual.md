@@ -1,0 +1,1 @@
+Schedulers can now ask "where can I fit N minutes today?" and get an answer that never falls outside working hours. When nothing fits, the library raises instead of returning a value that might be booked by mistake. The gaps quirk with out-of-hours bookings is not fixed here and remains separate work.
