@@ -1,0 +1,18 @@
+{
+  "schema": "pr-report/1",
+  "summary": [
+    "Verified Calendar#first_free_slot by running the test suite, RuboCop, and the spec's seven console checks plus edge cases: all seven checks pass, the suite is 10 runs / 0 failures, RuboCop is clean."
+  ],
+  "blocks": [
+    { "type": "file", "file": "check1-tests.txt", "caption": "Acceptance check 1: runbook test command reports 10 runs, 0 failures, 0 errors (5 prior + 5 added)" },
+    { "type": "file", "file": "check2-rubocop.txt", "caption": "Acceptance check 2: RuboCop reports no offenses on calendar.rb and test_calendar.rb (whole repo also clean)" },
+    { "type": "file", "file": "check3-empty-day.txt", "caption": "Acceptance check 3: empty calendar returns 09:00-17:00" },
+    { "type": "file", "file": "check4-skip-short-gap.txt", "caption": "Acceptance check 4: the 30-minute 09:00-09:30 gap is skipped; result is 10:00-11:00" },
+    { "type": "file", "file": "check5-exact-gap.txt", "caption": "Acceptance check 5: a gap of exactly 60 minutes qualifies; result is 10:00-11:00" },
+    { "type": "file", "file": "check6-clamp-outside-window.txt", "caption": "Acceptance check 6: out-of-window bookings at 07:00 and 18:00 do not leak past 09:00-17:00" },
+    { "type": "file", "file": "check7-no-free-slot.txt", "caption": "Acceptance check 7: with no qualifying gap it raises Calendar::NoFreeSlot with the specified message, not nil" },
+    { "type": "file", "file": "console-checks.txt", "caption": "All seven console checks in one run, as observed" },
+    { "type": "file", "file": "edge-checks.txt", "caption": "Edge cases: fully booked day raises; only a 30-minute gap raises; gaps() still returns 08:00-17:00 for a 07:00 booking while first_free_slot clamps to 09:00-17:00" },
+    { "type": "diagram", "title": "What each check exercised", "mermaid": "flowchart LR\n  B[Bookings] --> G[gaps 09:00-17:00]\n  G --> C[clamp each gap to window]\n  C --> T{length >= N min?}\n  T -- yes --> S[Slot for first match]\n  T -- no --> E[raise NoFreeSlot]" }
+  ]
+}
