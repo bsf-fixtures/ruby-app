@@ -1,0 +1,51 @@
+# Find the first free slot of a given length
+
+## plan
+
+Before: Calendar can list gaps(day_start, day_end) but cannot answer 'where is the first free stretch of N minutes in working hours', and gaps itself returns stretches that run outside the window when a booking sits outside it (a 07:00-08:00 booking makes the first gap 08:00-17:00; an 18:00-19:00 booking makes it 09:00-18:00). After: Calendar gains `first_free_slot(minutes, day_start, day_end)`, called with the day's 09:00 and 17:00 (same caller-supplied-bounds shape as gaps, so the library still never constructs a time). It walks gaps(day_start, day_end) in order, clamps each gap to [day_start, day_end] with `[gap.starts_at, day_start].max` / `[gap.ends_at, day_end].min`, skips any whose clamped end is not after its clamped start, and returns a new Slot for the first clamped gap whose length `(to - from) >= minutes * 60` (the whole clamped gap, not a slot trimmed to N minutes; a gap of exactly N minutes qualifies). When none qualifies it raises a new nested error `Calendar::NoFreeSlot` (`class NoFreeSlot < StandardError; end`, next to Conflict) with the message `"no free slot of #{minutes} minutes in #{Slot.new(day_start, day_end)}"`, e.g. `no free slot of 60 minutes in 09:00-17:00`: raise rather than return nil, following the repo's raise-don't-return-falsey pattern, so a caller cannot pass a missing slot on to book. The method carries a why-comment (what a scheduler needs, and why it clamps rather than trusting gaps' ends) and must stay within Metrics/MethodLength 15 and pass RuboCop with double quotes. Do not change gaps, Slot, or any existing test; no argument validation for minutes (no defensive checks, per fundamentals). Out of scope and worth its own work item: gaps returning ranges outside [day_start, day_end] when a booking lies outside the window. This plan works around that by clamping and does not fix it.
+
+## files
+
+- lib/scheduling/calendar.rb
+- test/test_calendar.rb
+
+## feature folders
+
+- lib/scheduling/
+- test/
+
+## acceptance checks
+
+- Install with the runbook's install command, then run the runbook's test command (the manifest's commands.test). It reports 0 failures and 0 errors, and the run count is the previous 5 plus the tests added here.
+- Run `bundle exec rubocop` with the runbook's PATH prefix. It reports no offenses for lib/scheduling/calendar.rb and test/test_calendar.rb.
+- In a console (`bundle exec ruby -Ilib -rtime -rscheduling/calendar -e ...` with at = ->(s){ Time.parse("2026-11-20 #{s}:00 UTC") }), call first_free_slot(60, at["09:00"], at["17:00"]) on a new Calendar with no bookings. `.to_s` prints `09:00-17:00`.
+- In the same console, book 09:30-10:00 and 11:00-12:00, then call first_free_slot(60, at["09:00"], at["17:00"]). It prints `10:00-11:00`: the 30-minute 09:00-09:30 gap is skipped.
+- In the same console, book 09:00-10:00 and 11:00-17:00, then call first_free_slot(60, at["09:00"], at["17:00"]). It prints `10:00-11:00`: a gap of exactly N minutes counts as 'at least N'.
+- In the same console, book only 07:00-08:00 and ask for 60 minutes. It prints `09:00-17:00`, not `08:00-17:00`. Separately, book only 18:00-19:00 and ask for 60 minutes. It prints `09:00-17:00`, not `09:00-18:00`.
+- In the same console, book 09:00-16:30 and ask first_free_slot(60, at["09:00"], at["17:00"]). It raises Scheduling::Calendar::NoFreeSlot with message `no free slot of 60 minutes in 09:00-17:00`. It does not return a slot that runs past 17:00, and it does not return nil.
+
+## tests added
+
+- test/test_calendar.rb: test_first_free_slot_on_an_empty_day_is_the_working_day. With no bookings, first_free_slot(60, at("09:00"), at("17:00")).to_s == "09:00-17:00".
+- test/test_calendar.rb: test_first_free_slot_skips_gaps_that_are_too_short. Book 09:30-10:00 and 11:00-12:00; asking for 60 minutes gives "10:00-11:00".
+- test/test_calendar.rb: test_a_gap_of_exactly_n_minutes_is_free_for_n_minutes. Book 09:00-10:00 and 11:00-17:00; asking for 60 gives "10:00-11:00". This protects 'at least' from becoming 'more than'.
+- test/test_calendar.rb: test_a_booking_outside_working_hours_does_not_stretch_the_free_slot. Book 07:00-08:00; asking for 60 gives "09:00-17:00". Book 18:00-19:00 on a fresh calendar; asking for 60 gives "09:00-17:00". Comment that without the clamp the answer comes straight from gaps and leaks outside working hours.
+- test/test_calendar.rb: test_no_free_slot_raises_rather_than_returning_one_outside_working_hours. Book 09:00-16:30; assert_raises(Scheduling::Calendar::NoFreeSlot) for 60 minutes, and the message includes "09:00-17:00" and "60 minutes".
+
+## tests changed
+
+- test/test_calendar.rb
+
+## research
+
+- `{"claim":"Calendar is a day's bookings for one room. gaps(day_start, day_end) takes the window from the caller and returns Slots from an edge list. Conflict is nested in Calendar. The new method and error go here, in the same caller-supplied-bounds shape.","source":"lib/scheduling/calendar.rb:37"}`
+- `{"claim":"gaps returns ranges outside the requested window when a booking lies outside it: a 07:00-08:00 booking gives [\"08:00-17:00\"] and an 18:00-19:00 booking gives [\"09:00-18:00\"]. Using gaps unclamped would return a slot outside working hours, which the request forbids.","source":"ran: ruby -rtime -Ilib -rscheduling/calendar -e 'at = ->(s) { Time.parse(%(2026-11-20 #{s}:00 UTC)) }; [%w[07:00 08:00], %w[18:00 19:00]].each { |f, t| c = Scheduling::Calendar.new(%(A)); c.book(Scheduling::Slot.new(at[f], at[t])); p c.gaps(at[%(09:00)], at[%(17:00)]).map(&:to_s) }' (prints [\"08:00-17:00\"] then [\"09:00-18:00\"])"}`
+- `{"claim":"The clamped-gaps design gives 09:00-17:00 (empty day), 10:00-11:00 (short gap skipped), 10:00-11:00 (exact fit), 09:00-17:00 (07-08 booking), 09:00-17:00 (18-19 booking), and NoFreeSlot 'no free slot of 60 minutes in 09:00-17:00' for a 09:00-16:30 booking with or without an 18:00-19:00 booking.","source":"ran: ruby /tmp/gh-aw/agent/proto/proto.rb (scratch prototype, not kept: reopens Scheduling::Calendar with NoFreeSlot and a first_free_slot that clamps each gaps(day_start, day_end) result to the window and returns the first clamped gap >= minutes*60, then prints the result for the seven booking cases listed in the claim)"}`
+- `{"claim":"Dominant patterns: report a no-answer by raising, never by returning a falsey value. Error classes are nested in the class that raises them. Error messages use Slot#to_s HH:MM-HH:MM. Every comment says why. The library does not know what a time is, so callers supply time values and the code only compares, subtracts and formats. No defensive type checks.","source":".factory/definition/context/fundamentals.md"}`
+- `{"claim":"Slot#minutes truncates (ends_at - starts_at)/60, and Slot#to_s formats HH:MM-HH:MM. So Slot.new(day_start, day_end).to_s renders the window as \"09:00-17:00\" for the error message with no new time formatting in Calendar.","source":"lib/scheduling/slot.rb"}`
+- `{"claim":"Tests are plain Minitest::Test methods in the single test/test_calendar.rb, which has at(hhmm)/slot(from, to) helpers on 2026-11-20 UTC and tests named after the decision they protect. New Calendar tests belong there, so the file is an existing-test edit and must be declared.","source":"test/test_calendar.rb"}`
+- `{"claim":"product_work may change code and tests. Edits to an existing test file must be listed in tests_changed. Neither lib/scheduling/calendar.rb nor test/test_calendar.rb is a protected path.","source":".factory/definition/policy.yaml"}`
+- `{"claim":"The sandbox is build_and_test with no app. Verification is the test command, RuboCop, and a ruby -Ilib console as the runbook's Verify step shows, so every acceptance check is a test run or a console call.","source":".factory/sandbox/manifest.json"}`
+- `{"claim":"The runbook's Verify step 3 is the console pattern the acceptance checks reuse: bundle exec ruby -Ilib -rtime -rscheduling/calendar -e with at = ->(s){ Time.parse(\"2026-11-20 #{s}:00 UTC\") }.","source":".factory/definition/context/runbook.md"}`
+- `{"claim":"RuboCop config: Style/Documentation on, Metrics/MethodLength max 15, double-quoted strings, TargetRubyVersion 3.3. The new method must fit these.","source":".rubocop.yml"}`
+- `{"claim":"No practices have been recorded by the repo owners yet, so there is nothing further to honour.","source":".factory/definition/context/practices.md"}`
