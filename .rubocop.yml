@@ -9,3 +9,7 @@ Style/Documentation:
 
 Metrics/MethodLength:
   Max: 15
+
+# The code uses double quotes throughout; keep the style it already has.
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
