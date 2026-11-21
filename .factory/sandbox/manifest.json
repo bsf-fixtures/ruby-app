@@ -1,13 +1,14 @@
 {
   "schema": "sandbox/1",
   "tier": "build_and_test",
-  "tier_reason": "There is no app to render. This repo is a library and nothing else: no bin/, no exe/, no server, no CLI entry point, no gemspec — grep for a main, a Rack app or an executable finds nothing. lib/scheduling is loaded by a caller with -Ilib, so there is no process to start and no URL to point a browser at, which is why run and app_url are null. Everything short of that works and was run here: bundle install resolves 16 gems into vendor/bundle, and the minitest suite reports 5 runs, 8 assertions, 0 failures, 0 errors, 0 skips.",
+  "tier_reason": "There is no app to render. This repo is a library and nothing else: no bin/, no exe/, no server, no CLI entry point, no gemspec - grep for a main, a Rack app or an executable finds nothing. lib/scheduling is loaded by a caller with -Ilib, so there is no process to start and no URL to point a browser at, which is why run and app_url are null. Everything short of that works and was run here: bundle install resolves 16 gems into vendor/bundle, the minitest suite reports 5 runs, 8 assertions, 0 failures, 0 errors, 0 skips, the coverage run reports the same 5 runs and writes lcov for both library files, and RuboCop writes SARIF over all four Ruby files.",
   "commands": {
     "install": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; bundle config set --local path vendor/bundle && bundle install",
     "build": null,
     "run": null,
-    "test": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; bundle exec ruby -Ilib test/test_calendar.rb",
-    "seed": null
+    "test": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; bundle exec ruby -Ilib -e 'files = Dir.glob(\"test/**/test_*.rb\").sort; abort(\"no test files matched test/**/test_*.rb\") if files.empty?; files.each { |f| require File.expand_path(f) }'",
+    "seed": null,
+    "coverage": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; set -e\nmkdir -p vendor/coverage\nprintf 'eval_gemfile \"%s/Gemfile\"\\ngem \"simplecov\", \"~> 0.22\"\\ngem \"simplecov-lcov\", \"~> 0.8\"\\n' \"$PWD\" > vendor/coverage/Gemfile\ncat > vendor/coverage/run.rb <<'COVERAGE_RUNNER'\n# Written by commands.coverage; not part of the repo.\nrequire \"simplecov\"\nrequire \"simplecov-lcov\"\n\nSimpleCov::Formatter::LcovFormatter.config do |config|\n  config.report_with_single_file = true\n  config.single_report_path = \"vendor/coverage/lcov.info\"\nend\n\n# simplecov-lcov writes \"SF:./lib/x.rb\"; the gate matches SF paths against\n# git's changed-file list, which has no \"./\" prefix, so strip it.\nclass RepoRelativeLcov\n  def format(result)\n    SimpleCov::Formatter::LcovFormatter.new.format(result)\n    path = File.join(SimpleCov.root, \"vendor/coverage/lcov.info\")\n    File.write(path, File.read(path).gsub(/^SF:\\.\\//, \"SF:\"))\n  end\nend\n\nSimpleCov.formatter = RepoRelativeLcov\nSimpleCov.start do\n  # Without this SimpleCov drops .resultset.json into ./coverage, which is not\n  # in .gitignore; everything the sandbox writes belongs under vendor/.\n  coverage_dir \"vendor/coverage\"\n  add_filter \"/test/\"\n  add_filter \"/vendor/\"\n  track_files \"lib/**/*.rb\"\nend\n\n# The same tests commands.test runs, loaded in one process so one report\n# covers all of them.\nfiles = Dir.glob(\"test/**/test_*.rb\").sort\nabort(\"no test files matched test/**/test_*.rb\") if files.empty?\nfiles.each { |f| require File.expand_path(f) }\nCOVERAGE_RUNNER\nexport BUNDLE_GEMFILE=\"$PWD/vendor/coverage/Gemfile\" BUNDLE_PATH=\"$PWD/vendor/bundle\"\nbundle install\nbundle exec ruby -Ilib vendor/coverage/run.rb"
   },
   "app_url": null,
   "env": [],
@@ -26,12 +27,17 @@
     {
       "from": ".github/workflows/ci.yml",
       "what": "the second step, bundle exec rubocop",
-      "why": "RuboCop is this repo's linter and the factory's static gate already runs it, comparing each rule's count per file against the baselines so that offenses which already exist are tolerated. Running it again as the sandbox's build would be a second, stricter copy of the same check that disagrees with the gate about what counts as a failure. It passes here — 4 files inspected, no offenses detected — and the runbook tells a developer to run it; it is just not the build command."
+      "why": "Superseded by the static_checks entry, and the round-1 reason for dropping it was wrong. It said the factory's static gate already runs RuboCop against per-file baselines; the gate does have a native RuboCop, but on this runner it cannot run (\"bundler: command not found: rubocop\"), so nothing was being counted at all. RuboCop is still not the build command - this repo has nothing to build, and a bare `bundle exec rubocop` as the build would fail the trial on the first pre-existing offense instead of ratcheting it. It runs as a declared static check instead. It passes here: 4 files inspected, no offenses detected."
     },
     {
       "from": "README.md",
       "what": "the bare bundle install in the Test section",
       "why": "Kept, but not verbatim. Run as written it fails on this runner with Bundler::ReadOnlyFileSystemError against the shared gem home, so the sandbox sets a local install path first. The README describes a developer's machine, where the gem home is writable; the difference is environment, not intent."
+    },
+    {
+      "from": "Gemfile",
+      "what": "adding simplecov and simplecov-lcov to the repo's own Gemfile",
+      "why": "The repo has no coverage tool, and the gates need an lcov report. Editing the Gemfile is the obvious way and was deliberately not taken: setup's changes to the repo are not kept, so a Gemfile edit would vanish and the coverage command would then fail on every PR. Instead commands.coverage writes vendor/coverage/Gemfile, which eval_gemfile's the repo's own Gemfile and adds the two gems, and resolves it with BUNDLE_GEMFILE. Everything it writes is under vendor/, which .gitignore already ignores, so the tree stays clean. The cost is that the coverage gems are not pinned in a committed lockfile; they are constrained to simplecov ~> 0.22 and simplecov-lcov ~> 0.8."
     }
   ],
   "capabilities": {
@@ -41,7 +47,9 @@
       "The exact message Calendar#book raises, since test_an_overlap_raises_naming_the_clash asserts the clashing slot's HH:MM-HH:MM form appears in it.",
       "Gap computation across the leading, interior and trailing gaps of a day (test_gaps_between_bookings).",
       "Dependency resolution from the Gemfile with no lockfile committed: bundle install resolves minitest and rubocop afresh within their ~> constraints, so a resolution that breaks the build shows up here.",
-      "RuboCop over all four Ruby files with the repo's own .rubocop.yml, including Style/Documentation and the double-quote style. Run during this episode with no offenses. It is the static gate's command rather than the manifest's, but it needs nothing the sandbox does not already provide."
+      "RuboCop over all four Ruby files with the repo's own .rubocop.yml, including Style/Documentation and the double-quote style. Run during this episode with no offenses. It is the static gate's command rather than the manifest's, but it needs nothing the sandbox does not already provide.",
+      "Line coverage of lib/, measured by SimpleCov and written as lcov at vendor/coverage/lcov.info: 35 relevant lines across the two library files, 34 covered (97.1%), the one miss being Calendar#free? at calendar.rb:30, which no test calls. The gate's diff coverage can therefore be measured on any change to lib/.",
+      "RuboCop over all four Ruby files with the repo's own .rubocop.yml, written as SARIF at vendor/static/rubocop.sarif via RuboCop's built-in sarif formatter. Verified to count: a scratch file with three deliberate offenses produced three SARIF results with cop names (Style/Documentation, Lint/UselessAssignment, Style/StringLiterals) and repo-relative paths; the repo as it stands produces none."
     ],
     "not_exercised": [
       {
@@ -77,6 +85,21 @@
           "lib/scheduling/calendar.rb"
         ],
         "why": "book is a linear scan and re-sorts the whole array on every insert. The suite books at most two slots, so it would not notice a change that made this quadratic or worse. There is no benchmark in the repo."
+      },
+      {
+        "what": "Branch coverage, and coverage of the test files themselves.",
+        "paths": [
+          "lib/scheduling/calendar.rb",
+          "lib/scheduling/slot.rb"
+        ],
+        "why": "SimpleCov is started in line mode with /test/ filtered out, so the report says which lines ran, not which branches. Slot#overlaps? is a single line with two comparisons: a change that broke one half of the half-open rule would still show the line as covered. Diff coverage is a floor, not a proof."
+      },
+      {
+        "what": "Any RuboCop cop that the repo's .rubocop.yml disables, and any cop from a rubocop extension gem.",
+        "paths": [
+          ".rubocop.yml"
+        ],
+        "why": "The SARIF comes from the repo's own configuration, which is the point - it counts what this repo has decided to enforce. rubocop-minitest, rubocop-performance and rubocop-rake are not in the Gemfile, so their cops do not run, and NewCops: enable means a RuboCop upgrade can add cops and so add findings that no change caused."
       }
     ]
   },
@@ -140,7 +163,88 @@
       "tried": "trial of round 1: install, test, control",
       "observed": "reached build_and_test, as claimed",
       "changed": null
+    },
+    {
+      "attempt": 11,
+      "tried": "Amendment round. Read amend.json (owner, coverage-and-checkers), then read the factory runner itself rather than guessing what the gates expect: how bsf gates coverage parses a report (readCoverage/fromLcov: per-file LF/LH, paths resolved with rel(root, ...)), how bsf gates tests chooses its command (commands.coverage instead of commands.test when set), and which checkers the static gate already runs natively.",
+      "observed": "Three things that decided the design. fromLcov keys files by rel(root, path), and rel leaves a relative path untouched - so an \"SF:./lib/x.rb\" line would never match git's \"lib/x.rb\" and diff coverage would silently find nothing. The tests gate runs commands.coverage in place of commands.test, so the coverage run has to be the tests, not a second suite. And the static gate does have a native RuboCop, triggered by Gemfile + .rubocop.yml.",
+      "changed": "Set the shape: lcov with repo-relative SF paths, one coverage command that runs the same tests, and no second linter unless the native one is proved unable to run."
+    },
+    {
+      "attempt": 12,
+      "tried": "Ran the factory's own static gate against this repo to see whether its native RuboCop works: .factory/bin/bsf gates static --base HEAD.",
+      "observed": "\"## Tools that could not run - rubocop - bundler: command not found: rubocop\", then \"A tool that cannot run is not a pass\" and conclusion=neutral. The gate invokes a bare `bundle exec rubocop`; on this runner `bundle` is /opt/hostedtoolcache/Ruby/4.0.9/x64/bin/bundle while the install command puts the gems under Ruby 3.3's ABI directory, so bundler finds no rubocop binstub. This is the static half of the amendment report, measured.",
+      "changed": "Nothing yet - first tried to fix the environment rather than work around it."
+    },
+    {
+      "attempt": 13,
+      "tried": "Making the native RuboCop work, by running bundle install a second time under the default Ruby so vendor/bundle also has a 4.0.0 ABI directory.",
+      "observed": "bundle install exits 1 under Ruby 4.0.9: it installs bundler 2.5.22 (the version the lockfile was written with), re-execs into it, and that dies with \"NoMethodError: undefined method 'parse' for class CGI\" in net-http-persistent. A following `bundle exec rubocop` still says \"command not found: rubocop\". Pinning the sandbox to Ruby 4.0.9 instead was rejected: CI pins 3.3 and .rubocop.yml targets 3.3.",
+      "changed": "Removed the half-written vendor/bundle/ruby/4.0.0 tree and stopped trying to fix the native invocation; declared RuboCop under static_checks instead, with its own PATH, and wrote why in that entry so the workaround is reversible."
+    },
+    {
+      "attempt": 14,
+      "tried": "RuboCop's SARIF output. Ran `bundle exec rubocop --format sarif --out vendor/static/rubocop.sarif --force-exclusion`, then wrote a scratch file in lib/ with three deliberate offenses to see that findings are actually countable, and deleted it.",
+      "observed": "RuboCop 1.x ships a sarif formatter, so no converter is needed. Clean repo: exit 0 and zero results. With the scratch file: exit 1, three results, ruleId = the cop name, artifactLocation.uri = \"lib/scratch_probe.rb\" with no uriBaseId - exactly the shape countSarif wants, and the same cop names the native tool reports.",
+      "changed": "static_checks: one entry, name rubocop, sarif vendor/static/rubocop.sarif."
+    },
+    {
+      "attempt": 15,
+      "tried": "The coverage run. SimpleCov with simplecov-lcov, resolved through vendor/coverage/Gemfile (eval_gemfile of the repo's own Gemfile plus the two gems), started before the tests are required so the library is instrumented.",
+      "observed": "5 runs, 8 assertions, 0 failures - the same result as commands.test - and an lcov report with both library files, LF/LH on each. But the SF lines read \"SF:./lib/scheduling/calendar.rb\": simplecov-lcov relativizes against SimpleCov.root with a leading \"./\", which fromLcov would keep and the changed-file lookup would then miss.",
+      "changed": "Wrapped the formatter in a small RepoRelativeLcov that strips the \"./\" prefix after writing. Re-ran: \"SF:lib/scheduling/calendar.rb\", LF:22 LH:21, and \"SF:lib/scheduling/slot.rb\", LF:13 LH:13."
+    },
+    {
+      "attempt": 16,
+      "tried": "Deciding where the report goes. coverage/lcov.info is the conventional place and the one readCoverage falls back to.",
+      "observed": "coverage/ is not in .gitignore, so every gate run and every developer who ran the command would leave an untracked directory in the tree, which sooner or later lands in a PR. /vendor is already ignored.",
+      "changed": "Put the report at vendor/coverage/lcov.info and the SARIF at vendor/static/rubocop.sarif, both declared explicitly, and said so in the runbook."
+    },
+    {
+      "attempt": 17,
+      "tried": "Keeping commands.coverage and commands.test honestly the same tests. Both now load Dir.glob(\"test/**/test_*.rb\").sort rather than naming test/test_calendar.rb, with an abort if the glob matches nothing.",
+      "observed": "The glob resolves today to exactly test/test_calendar.rb, and both commands report 5 runs, 8 assertions, 0 failures. The abort matters for the trial's control: without it the test command would exit 0 in an empty directory and the tier would collapse to static. Checked both - in an empty directory the test command exits 10 (bundler finds no Gemfile), and the abort is the second line of defence.",
+      "changed": "commands.test now globs. The reason it is not left naming one file: a new test file would otherwise be run by the coverage gate but not by the trial, and the two would quietly disagree about what the suite is."
+    },
+    {
+      "attempt": 18,
+      "tried": "Ran the two gates this amendment exists for, against this manifest rather than the frozen one: put it in a trusted root (BSF_TRUSTED_ROOT), wrote the closed-environment marker the gates require, and ran `bsf gates static --base HEAD` and `bsf gates coverage`. For the coverage gate, made a throwaway branch with one commit touching lib/scheduling/calendar.rb so there was a changed file to measure, then deleted the branch.",
+      "observed": "Static: \"Ran: rubocop\", \"No rule's count rose in any file, and no guardrail got weaker\", conclusion=success - it still prints \"Tools that could not run: rubocop\" for the native attempt, which does not affect the conclusion. Coverage: diff coverage 95.5% against a 80% requirement, total coverage 97.1%, 0 skipped tests. Before the amendment the same two commands gave conclusion=neutral and \"no coverage report\". Checked afterwards that nothing under .factory/ had been written and the working tree was as it started.",
+      "changed": "Nothing. This is the evidence that the amendment answers the report rather than only satisfying the schema."
+    },
+    {
+      "attempt": 19,
+      "tried": "Checked the working tree after that clean run, not just the exit codes.",
+      "observed": "git status showed an untracked coverage/ directory holding .resultset.json, .last_run.json and a lock file. Declaring single_report_path under vendor/ moves the lcov file but not SimpleCov's own result cache, which goes to SimpleCov.coverage_dir - \"coverage\" by default, and that is not gitignored. Left alone it would have put an untracked directory in every gate run and every developer's checkout.",
+      "changed": "Added coverage_dir \"vendor/coverage\" to the SimpleCov.start block. Re-ran from clean: same 5 runs and the same lcov, and git status now shows nothing but the files this episode never touched."
+    },
+    {
+      "attempt": 20,
+      "tried": "Final validation and a last end-to-end run from a clean tree (rm -rf vendor .bundle Gemfile.lock coverage), reading every command string back out of the finished manifest.json so that what was measured is exactly what the trial will execute, escaping and all.",
+      "observed": "\"valid sandbox manifest, tier build_and_test\". install: Bundle complete, 16 gems. test: 5 runs, 8 assertions, 0 failures. coverage: the same 5 runs plus 22 gems (the two coverage gems and their four dependencies) and lcov at vendor/coverage/lcov.info. static check: exit 0, SARIF with zero results. In an empty directory the test command exits 10. git status shows nothing new in the repo.",
+      "changed": null
+    },
+    {
+      "attempt": 21,
+      "tried": "trial of round 1: install, test, control",
+      "observed": "reached build_and_test, as claimed",
+      "changed": null
     }
   ],
-  "frozen_at": "2026-11-21T05:40:22.351Z"
+  "frozen_at": "2026-11-21T10:08:50.456Z",
+  "coverage_report": {
+    "path": "vendor/coverage/lcov.info",
+    "format": "lcov"
+  },
+  "static_checks": [
+    {
+      "name": "rubocop",
+      "command": "RB=$(ls -d /opt/hostedtoolcache/Ruby/3.3.*/x64/bin 2>/dev/null | sort -V | tail -1); export PATH=\"${RB:-$(dirname \"$(command -v bundle)\")}:$PATH\"; mkdir -p vendor/static && bundle exec rubocop --format sarif --out vendor/static/rubocop.sarif --force-exclusion",
+      "sarif": "vendor/static/rubocop.sarif",
+      "why": "RuboCop is the only checker this repo runs, and the factory's own native RuboCop cannot run here. Measured: `bsf gates static` reports \"rubocop - bundler: command not found: rubocop\" and concludes neutral, because it invokes a bare `bundle exec rubocop` with the job's PATH, where `bundle` is the tool cache's Ruby 4.0.9 bundler while the install puts the gems under Ruby 3.3's ABI directory. Installing them for 4.0.9 as well is not a way out: its bundler re-execs the lockfile's bundler 2.5.22, which dies on Ruby 4 with \"undefined method 'parse' for class CGI\". This entry runs the same RuboCop with the same .rubocop.yml, under the Ruby 3.3 the rest of the sandbox uses, and writes RuboCop's own built-in SARIF - the same cop names the native tool would report, so the per-file baselines mean the same thing. Expect the gate's summary to go on listing rubocop under \"Tools that could not run\": that is the native attempt, and it does not decide the conclusion - measured with this manifest, the gate prints \"Ran: rubocop\" and conclusion=success. If the runner image ever lets the native tool run, both would count the same offenses and the ratchet would fail loudly; drop this entry then."
+    }
+  ],
+  "amended_by": [
+    "owner/coverage-and-checkers (2026-11-21): the coverage gate reported no coverage report on every PR, so diff coverage was never measured, and the static gate counted nothing. Answered with commands.coverage + coverage_report (SimpleCov -> lcov) and a static_checks entry that runs the repo's own RuboCop to SARIF."
+  ]
 }
